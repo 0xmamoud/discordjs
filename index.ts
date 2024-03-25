@@ -2,7 +2,7 @@ import { Client, GatewayIntentBits, Events, Collection } from "discord.js";
 import * as fs from "fs";
 import * as path from "path";
 
-interface ExtendClient extends Client {
+export interface ExtendClient extends Client {
   commands: Collection<string, any>;
 }
 
@@ -34,34 +34,19 @@ for (const folder of commandFolders) {
   }
 }
 
-client.once(Events.ClientReady, (readyClient) => {
-  console.log(`Loged as ${readyClient.user.tag}`);
-});
+const eventsPath = path.join(__dirname, "events");
+const eventFiles = fs
+  .readdirSync(eventsPath)
+  .filter((file) => file.endsWith(".ts"));
 
-client.on(Events.InteractionCreate, async (interaction: any) => {
-  if (!interaction.isChatInputCommand()) return;
-
-  const command = client.commands.get(interaction.commandName);
-  if (!command) {
-    console.error(`No command matching ${interaction.commandName} was found.`);
-    return;
+for (const file of eventFiles) {
+  const filePath = path.join(eventsPath, file);
+  const event = await import(filePath);
+  if (event.default.once) {
+    client.once(event.default.name, (...args) => event.default.execute(...args));
+  } else {
+    client.on(event.default.name, (...args) => event.default.execute(...args));
   }
-
-  try {
-    await command.execute(interaction);
-  } catch (error) {
-    if (interaction.replied || interaction.deferred) {
-      await interaction.followUp({
-        content: "There was an error while executing this command!",
-        ephemeral: true,
-      });
-    } else {
-      await interaction.followUp({
-        content: "There was an error while executing this command!",
-        ephemeral: true,
-      });
-    }
-  }
-});
+}
 
 client.login(TOKEN);
